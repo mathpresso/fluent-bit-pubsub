@@ -12,6 +12,8 @@ import (
 	"context"
 
 	"github.com/fluent/fluent-bit-go/output"
+
+	jsoniter "github.com/json-iterator/go"
 )
 import "os"
 
@@ -152,6 +154,8 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 	// Create Fluent Bit decoder
 	dec := wrapper.NewDecoder(data, int(length))
 	var results []*pubsub.PublishResult
+	var err error
+	var message []byte
 	// Iterate Records
 	for {
 		// Extract Record
@@ -160,11 +164,18 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 			break
 		}
 		timestamp := ts.(output.FLBTime)
-		for k, v := range record {
-			//fmt.Printf("[%s] %s %s %v \n", tagname, timestamp.String(), k, v)
-			_, _, _ = k, timestamp, tagname
-			results = append(results, plugin.Send(ctx, interfaceToBytes(v)))
+		record, err = DecodeMap(record)
+		if err != nil {
+			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestamp.String(), record)
 		}
+
+		var json = jsoniter.ConfigCompatibleWithStandardLibrary
+		message, err = json.Marshal(record)
+
+		if err != nil {
+			fmt.Printf("Failed to marshal record: [%s] %s %v\n", tagname, timestamp.String(), message)
+		}
+		results = append(results, plugin.Send(ctx, interfaceToBytes(message)))
 	}
 	for _, result := range results {
 		if _, err := result.Get(ctx); err != nil {
@@ -203,6 +214,54 @@ func interfaceToBytes(v interface{}) []byte {
 	default:
 		return []byte(fmt.Sprintf("%v", d))
 	}
+}
+
+// DecodeMap prepares a record for JSON marshalling
+// Any []byte will be base64 encoded when marshaled to JSON, so we must directly cast all []byte to string
+func DecodeMap(record map[interface{}]interface{}) (map[interface{}]interface{}, error) {
+	for k, v := range record {
+		switch t := v.(type) {
+		case []byte:
+			// convert all byte slices to strings
+			record[k] = string(t)
+		case map[interface{}]interface{}:
+			decoded, err := DecodeMap(t)
+			if err != nil {
+				return nil, err
+			}
+			record[k] = decoded
+		case []interface{}:
+			decoded, err := decodeSlice(t)
+			if err != nil {
+				return nil, err
+			}
+			record[k] = decoded
+		}
+	}
+	return record, nil
+}
+
+func decodeSlice(record []interface{}) ([]interface{}, error) {
+	for i, v := range record {
+		switch t := v.(type) {
+		case []byte:
+			// convert all byte slices to strings
+			record[i] = string(t)
+		case map[interface{}]interface{}:
+			decoded, err := DecodeMap(t)
+			if err != nil {
+				return nil, err
+			}
+			record[i] = decoded
+		case []interface{}:
+			decoded, err := decodeSlice(t)
+			if err != nil {
+				return nil, err
+			}
+			record[i] = decoded
+		}
+	}
+	return record, nil
 }
 
 func main() {}
