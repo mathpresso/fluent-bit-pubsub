@@ -3,12 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 
 	"cloud.google.com/go/pubsub"
 	"github.com/pkg/errors"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/option"
 )
 
 type Keeper interface {
@@ -23,22 +20,13 @@ type GooglePubSub struct {
 
 func NewKeeper(projectId, topicName, jwtPath string,
 	publishSetting *pubsub.PublishSettings) (Keeper, error) {
-	if projectId == "" || topicName == "" || jwtPath == "" {
+	if projectId == "" || topicName == "" {
 		return nil, fmt.Errorf("[err] NewKeeper empty params")
 	}
 
-	keyBytes, err := ioutil.ReadFile(jwtPath)
-	if err != nil {
-		return nil, errors.Wrap(err, "[err] jwt path")
-	}
-
-	config, err := google.JWTConfigFromJSON(keyBytes, pubsub.ScopePubSub)
-	if err != nil {
-		return nil, errors.Wrap(err, "[err] jwt config")
-	}
-
 	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, projectId, option.WithTokenSource(config.TokenSource(ctx)))
+
+	client, err := pubsub.NewClient(ctx, projectId)
 	if err != nil {
 		return nil, errors.Wrap(err, "[err] pubsub client")
 	}
