@@ -11,8 +11,8 @@ function build
    go build -buildmode=c-shared -o pubsub.so .
    local osname=`go env | grep GOOS | awk -F "=" '{print $2}' | sed 's/\"//g'`
    local archname=`go env | grep GOARCH | awk -F "=" '{print $2}' | sed 's/\"//g'`
-   mkdir -p $CURRENT/bin/${osname}_${archname} || true
-   mv pubsub.so pubsub.h $CURRENT/bin/${osname}_${archname}/
+   mkdir -p $CURRENT/files/${osname}_${archname} || true
+   mv pubsub.so pubsub.h $CURRENT/files/${osname}_${archname}/
 }
 
 function build_linux
@@ -24,11 +24,11 @@ function build_linux
    fi
    local osname=linux
    local archname=amd64
-   mkdir -p $CURRENT/bin/${osname}_${archname} || true
+   mkdir -p $CURRENT/files/${osname}_${archname} || true
    docker build --no-cache -t pubsub:latest -f Dockerfile .
    docker run -it --rm -d --name pubsub pubsub:latest /bin/bash
-   docker cp pubsub:/go/pubsub/pubsub.so $CURRENT/bin/${osname}_${archname}/
-   docker cp pubsub:/go/pubsub/pubsub.h $CURRENT/bin/${osname}_${archname}/
+   docker cp pubsub:/go/pubsub/pubsub.so $CURRENT/files/${osname}_${archname}/
+   docker cp pubsub:/go/pubsub/pubsub.h $CURRENT/files/${osname}_${archname}/
    docker kill pubsub
 }
 

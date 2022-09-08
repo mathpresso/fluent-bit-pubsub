@@ -23,7 +23,11 @@ $ bash make.sh build
 # Your machine is mac, and if you should do to retry cross compiling for linux.
 # A command in below is required a docker.  
 $ bash make.sh build_linux
+
+# qanda-for-fluent-bit
+$ docker build -f docker/Dockerfile . -t qanda-for-fluent-bit:beta
 ```
+
 
 ## Usage
 ### configuration options for fluent-bit.conf
