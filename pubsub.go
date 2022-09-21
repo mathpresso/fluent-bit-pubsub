@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-
 	"cloud.google.com/go/pubsub"
 	"github.com/pkg/errors"
 )
@@ -27,11 +26,17 @@ func NewKeeper(projectId, topicName, jwtPath string,
 	ctx := context.Background()
 
 	client, err := pubsub.NewClient(ctx, projectId)
+
+	fmt.Printf("[pubsub-go] pubsub client: %+v\n", client)
+
 	if err != nil {
 		return nil, errors.Wrap(err, "[err] pubsub client")
 	}
 
-	topic := client.Topic(topicName)
+	topic := client.TopicInProject(topicName, projectId)
+
+	fmt.Printf("[pubsub-go] pubsub topic: %+v\n", topic)
+
 	if publishSetting != nil {
 		topic.PublishSettings = *publishSetting
 	} else {
