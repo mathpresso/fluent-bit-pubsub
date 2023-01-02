@@ -1,0 +1,17 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'buildx', 'build',
+        '--platform=linux/amd64',
+        '-f', 'docker/Dockerfile',
+        '-t', 'asia-northeast3-docker.pkg.dev/mp-artifact-registry-aa49/devops/qanda/fluent-bit:3.2.10-pubsub',
+        '--push',
+        '.'
+      ]
+    env:
+      - DOCKER_CLI_EXPERIMENTAL=enabled
+    entrypoint: 'docker'
+
+timeout: 1200s
+
