@@ -10,9 +10,11 @@ WORKDIR /go/pubsub
 
 RUN go build -buildmode=c-shared -o pubsub.so .
 
-FROM 526094755604.dkr.ecr.ap-northeast-2.amazonaws.com/mirror/amazon/aws-for-fluent-bit:2.10.0
+FROM cr.fluentbit.io/fluent/fluent-bit:1.7.9
 
 COPY --from=gobuilder /go/pubsub/pubsub.so /fluent-bit/
 
+COPY conf/ /fluent-bit/parsers
 
-CMD ["bash", "-c", "/fluent-bit/bin/fluent-bit -e /fluent-bit/firehose.so -e /fluent-bit/cloudwatch.so -e /fluent-bit/kinesis.so -e /fluent-bit/pubsub.so -c /fluent-bit/etc/fluent-bit.conf"]
+CMD ["/fluent-bit/bin/fluent-bit", "-e", "/fluent-bit/pubsub.so", "-c", "/fluent-bit/etc/fluent-bit.conf"]
+
