@@ -1,8 +1,9 @@
 steps:
-  # ✅ Step 1: make.sh 스크립트 실행 (bash가 포함된 ubuntu 이미지 사용)
-  - name: 'ubuntu'
+  # Step 1: make.sh 실행을 위한 bash + docker 이미지
+  - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
-    args: ['make.sh', 'build_linux']
+    args: ['make.sh', 'build']
+    dir: '.'
 
   # ✅ Step 2: Docker buildx 빌드
   - name: 'gcr.io/cloud-builders/docker'
