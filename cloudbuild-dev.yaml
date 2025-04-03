@@ -1,11 +1,6 @@
-steps:
-  # Step 1: make.sh 실행을 위한 bash + docker 이미지
-  - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: 'bash'
-    args: ['make.sh', 'build']
-    dir: '.'
+# cloudbuild.yaml
 
-  # ✅ Step 2: Docker buildx 빌드
+steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       [
