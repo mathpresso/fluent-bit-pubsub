@@ -1,4 +1,10 @@
 steps:
+  # 1️⃣ make.sh 실행 단계 (go 플러그인 빌드 등)
+  - name: 'gcr.io/cloud-builders/bash'
+    entrypoint: 'bash'
+    args: ['make.sh', 'build_linux']
+
+  # 2️⃣ Docker 이미지 빌드 및 푸시 단계
   - name: 'gcr.io/cloud-builders/docker'
     args:
       [
@@ -14,4 +20,5 @@ steps:
     entrypoint: 'docker'
 
 timeout: 1200s
-
+options:
+  machineType: 'E2_HIGHCPU_8'
