@@ -1,17 +1,17 @@
 steps:
-  # 1️⃣ make.sh 실행 단계 (go 플러그인 빌드 등)
-  - name: 'gcr.io/cloud-builders/bash'
+  # ✅ Step 1: make.sh 스크립트 실행 (bash가 포함된 ubuntu 이미지 사용)
+  - name: 'ubuntu'
     entrypoint: 'bash'
     args: ['make.sh', 'build_linux']
 
-  # 2️⃣ Docker 이미지 빌드 및 푸시 단계
+  # ✅ Step 2: Docker buildx 빌드
   - name: 'gcr.io/cloud-builders/docker'
     args:
       [
         'buildx', 'build',
         '--platform=linux/amd64',
         '-f', 'docker/Dockerfile',
-        '-t', 'asia-northeast3-docker.pkg.dev/mp-artifact-registry-aa49/devops/qanda/fluent-bit:3.2.10-pubsub-v0.1',
+        '-t', 'asia-northeast3-docker.pkg.dev/mp-artifact-registry-aa49/devops/qanda/fluent-bit:3.2.10-pubsub',
         '--push',
         '.'
       ]
