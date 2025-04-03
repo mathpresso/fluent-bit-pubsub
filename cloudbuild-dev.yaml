@@ -7,7 +7,7 @@ steps:
         'buildx', 'build',
         '--platform=linux/amd64',
         '-f', 'docker/Dockerfile',
-        '-t', 'asia-northeast3-docker.pkg.dev/mp-artifact-registry-aa49/devops/qanda/fluent-bit:3.2.10-$(date +%Y-%m-%d_%H-%M)_$SHORT_SHA',
+        '-t', 'asia-northeast3-docker.pkg.dev/mp-artifact-registry-aa49/devops/qanda/fluent-bit:$(date +%Y-%m-%d_%H-%M)_$SHORT_SHA',
         '--push',
         '.'
       ]
