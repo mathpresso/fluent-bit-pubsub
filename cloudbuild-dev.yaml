@@ -1,5 +1,8 @@
 # cloudbuild.yaml
 
+substitutions:
+  _TAG_SUFFIX: "3.2.10"
+
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
@@ -7,13 +10,14 @@ steps:
         'buildx', 'build',
         '--platform=linux/amd64',
         '-f', 'docker/Dockerfile',
-        '-t', 'asia-northeast3-docker.pkg.dev/mp-artifact-registry-aa49/devops/qanda/fluent-bit:$(date +%Y-%m-%d_%H-%M)_$SHORT_SHA',
+        '-t', 'asia-northeast3-docker.pkg.dev/mp-artifact-registry-aa49/devops/qanda/fluent-bit:${_TAG_SUFFIX}-$SHORT_SHA',
         '--push',
         '.'
       ]
     env:
       - DOCKER_CLI_EXPERIMENTAL=enabled
     entrypoint: 'docker'
+
 
 timeout: 1200s
 options:
