@@ -147,7 +147,7 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 	ctx := context.Background()
 	tagname := ""
-	if tag != nil {
+	if tag == nil {
 		tagname = C.GoString(tag)
 	}
 
@@ -156,45 +156,40 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 	var results []*pubsub.PublishResult
 	var err error
 	var message []byte
-
 	// Iterate Records
 	for {
+		// Extract Record
 		ret, ts, record := wrapper.GetRecord(dec)
-		if ret != 0 {
+		if ret != 0 { // don't rest
 			break
 		}
-
-		// Type-safe timestamp extraction
-		var timestampStr string
-		switch t := ts.(type) {
-		case output.FLBTime:
-			timestampStr = t.String()
-		case []interface{}:
-			timestampStr = fmt.Sprintf("%v", t) // fallback
-		default:
-			timestampStr = fmt.Sprintf("%v", ts)
-		}
-
+		// before
+		// timestamp := ts.(output.FLBTime)
+		// after
+		timestampStr := fmt.Sprintf("%v", ts)
 		record, err = DecodeMap(record)
 		if err != nil {
+			// fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestamp.String(), record)
 			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
 		}
 
 		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		message, err = json.Marshal(record)
-		if err != nil {
-			fmt.Printf("Failed to marshal record: [%s] %s %v\n", tagname, timestampStr, message)
-		}
 
+		if err != nil {
+			// fmt.Printf("Failed to marshal record: [%s] %s %v\n", tagname, timestamp.String(), message)
+			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
+		}
 		results = append(results, plugin.Send(ctx, interfaceToBytes(message)))
 	}
-
 	for _, result := range results {
 		if _, err := result.Get(ctx); err != nil {
+			// if timeout is raised.
 			if err == context.DeadlineExceeded || err == context.Canceled {
 				fmt.Printf("[err][publish][retry] %+v \n", err)
 				return output.FLB_RETRY
 			}
+			// else error is next
 			fmt.Printf("[err][publish][don't retry] %+v \n", err)
 		}
 	}
