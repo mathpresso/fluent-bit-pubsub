@@ -56,3 +56,30 @@ $ docker build -f docker/Dockerfile . -t qanda-for-fluent-bit:beta
 ```bash
 $ fluent-bit -c [your config file] -e pubsub.so 
 ```
+
+### GCP Cloudbuild 배포 ###
+1. 이미지 배포는 GCP CloudBuild를 통해서 배포하고 Cloudbuild Trigger는 다음과 같습니다.
+[GCP CloudBduil Trigger](https://console.cloud.google.com/cloud-build/triggers;region=global/edit/bd531b25-6238-4c3f-82f7-87f615ab3322?invt=AbuM7A&project=qanda-dev-bakery-f5e1&supportedpurview=project)
+
+2. 빌드 후 Artifact-registry 저장됩니다.
+[Fluent-Bit 이미지](https://console.cloud.google.com/artifacts/docker/mp-artifact-registry-aa49/asia-northeast3/devops/qanda%2Ffluent-bit?invt=AbuM7g&project=mp-artifact-registry-aa49&supportedpurview=project)
+
+3. Melon Fluent-Bit 배포 예시 yaml 정보
+버전 upgrade 시 tag 정보로 업그레이드 합니다.
+```conf
+        fluentbit:
+          enabled: true
+          tag: 3.2.10-16ae37a
+          mountPaths:
+          - /tmp/data-pipeline
+          infos:
+          - logPath: /tmp/data-pipeline/data-pipeline.log
+            pubsub_topic: qanda_log
+            project_id: qp-data-serverlog-0a34
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+```
