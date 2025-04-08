@@ -10,7 +10,7 @@ WORKDIR /go/pubsub
 
 RUN go build -buildmode=c-shared -o pubsub.so .
 
-FROM cr.fluentbit.io/fluent/fluent-bit:1.7.9
+FROM cr.fluentbit.io/fluent/fluent-bit:3.2.10
 
 COPY --from=gobuilder /go/pubsub/pubsub.so /fluent-bit/
 

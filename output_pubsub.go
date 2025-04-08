@@ -163,17 +163,22 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 		if ret != 0 { // don't rest
 			break
 		}
-		timestamp := ts.(output.FLBTime)
+		// before
+		// timestamp := ts.(output.FLBTime)
+		// after
+		timestampStr := fmt.Sprintf("%v", ts)
 		record, err = DecodeMap(record)
 		if err != nil {
-			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestamp.String(), record)
+			// fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestamp.String(), record)
+			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
 		}
 
 		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		message, err = json.Marshal(record)
 
 		if err != nil {
-			fmt.Printf("Failed to marshal record: [%s] %s %v\n", tagname, timestamp.String(), message)
+			// fmt.Printf("Failed to marshal record: [%s] %s %v\n", tagname, timestamp.String(), message)
+			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
 		}
 		results = append(results, plugin.Send(ctx, interfaceToBytes(message)))
 	}
