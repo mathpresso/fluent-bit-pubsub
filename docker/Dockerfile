@@ -3,8 +3,10 @@ FROM golang:1.22 as gobuilder
 RUN apt-get update && apt-get install -y ca-certificates libgnutls30
 
 WORKDIR /build
-COPY . .
+COPY go.mod go.sum ./
+RUN go mod download
 
+COPY . .
 RUN go build -buildmode=c-shared -o pubsub.so .
 
 FROM cr.fluentbit.io/fluent/fluent-bit:3.2.10
