@@ -144,71 +144,73 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 	return output.FLB_OK
 }
 
+// FLBPluginFlush: 구버전 ABI 엔트리포인트
+// 구버전 Fluent Bit에서는 'data'가 플러그인 컨텍스트를 가리킵니다.
+// 하위 호환을 위해 최신 방식 함수(아래)로 위임합니다.
 //export FLBPluginFlush
 func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
-	// Get instance-specific keeper from Fluent Bit context
-	ctxData := output.FLBPluginGetContext(data)
-	if ctxData == nil {
-		fmt.Printf("[err][flush] context is nil\n")
-		return output.FLB_ERROR
-	}
-	instanceKeeper, ok := ctxData.(Keeper)
-	if !ok {
-		fmt.Printf("[err][flush] invalid keeper type\n")
-		return output.FLB_ERROR
-	}
-	
-	ctx := context.Background()
-	tagname := ""
-	if tag != nil {
-		tagname = C.GoString(tag)
-	}
+    // Call the ctx-aware variant using data as ctx for old ABI compatibility
+    return FLBPluginFlushCtx(data, data, length, tag)
+}
 
-	// Create Fluent Bit decoder
-	dec := wrapper.NewDecoder(data, int(length))
-	var results []*pubsub.PublishResult
-	var err error
-	var message []byte
-	// Iterate Records
-	for {
-		// Extract Record
-		ret, ts, record := wrapper.GetRecord(dec)
-		if ret != 0 { // don't rest
-			break
-		}
-		// before
-		// timestamp := ts.(output.FLBTime)
-		// after
-		timestampStr := fmt.Sprintf("%v", ts)
-		record, err = DecodeMap(record)
-		if err != nil {
-			// fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestamp.String(), record)
-			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
-		}
+// FLBPluginFlushCtx: 최신 ABI 엔트리포인트
+// 최신 Fluent Bit에서는 플러그인 컨텍스트는 'ctx'로, 레코드 버퍼는 'data'로 전달됩니다.
+// 신규 버전에서 컨텍스트 nil 문제가 생기지 않도록 항상 'ctx'에서 컨텍스트를 조회합니다.
+//export FLBPluginFlushCtx
+func FLBPluginFlushCtx(ctx unsafe.Pointer, data unsafe.Pointer, length C.int, tag *C.char) int {
+    ctxData := output.FLBPluginGetContext(ctx)
+    if ctxData == nil {
+        fmt.Printf("[err][flush] context is nil\n")
+        return output.FLB_ERROR
+    }
+    instanceKeeper, ok := ctxData.(Keeper)
+    if !ok {
+        fmt.Printf("[err][flush] invalid keeper type\n")
+        return output.FLB_ERROR
+    }
 
-		var json = jsoniter.ConfigCompatibleWithStandardLibrary
-		message, err = json.Marshal(record)
+    bctx := context.Background()
+    tagname := ""
+    if tag != nil {
+        tagname = C.GoString(tag)
+    }
 
-		if err != nil {
-			// fmt.Printf("Failed to marshal record: [%s] %s %v\n", tagname, timestamp.String(), message)
-			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
-		}
-		results = append(results, instanceKeeper.Send(ctx, interfaceToBytes(message)))
-	}
-	for _, result := range results {
-		if result != nil {
-			if _, err := result.Get(ctx); err != nil {
-				// if timeout is raised or context cancelled.
-				if err == context.DeadlineExceeded || err == context.Canceled {
-					fmt.Printf("[err][publish][retry] %+v \n", err)
-					return output.FLB_RETRY
-				}
-				// else error is next
-				fmt.Printf("[err][publish][don't retry] %+v \n", err)
-			}
-		}
-	}
-	return output.FLB_OK
+    dec := wrapper.NewDecoder(data, int(length))
+    var results []*pubsub.PublishResult
+    var err error
+    var message []byte
+
+    for {
+        ret, ts, record := wrapper.GetRecord(dec)
+        if ret != 0 {
+            break
+        }
+        timestampStr := fmt.Sprintf("%v", ts)
+        record, err = DecodeMap(record)
+        if err != nil {
+            fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
+        }
+
+        var json = jsoniter.ConfigCompatibleWithStandardLibrary
+        message, err = json.Marshal(record)
+        if err != nil {
+            fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
+        }
+        results = append(results, instanceKeeper.Send(bctx, interfaceToBytes(message)))
+    }
+
+    for _, result := range results {
+        if result != nil {
+            if _, err := result.Get(bctx); err != nil {
+                if err == context.DeadlineExceeded || err == context.Canceled {
+                    fmt.Printf("[err][publish][retry] %+v \n", err)
+                    return output.FLB_RETRY
+                }
+                fmt.Printf("[err][publish][don't retry] %+v \n", err)
+            }
+        }
+    }
+    return output.FLB_OK
 }
 
 //export FLBPluginExit
