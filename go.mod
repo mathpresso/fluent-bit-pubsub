@@ -2,7 +2,7 @@ module github.com/gjbae1212/fluent-bit-pubsub
 
 require (
 	cloud.google.com/go v0.37.4
-	github.com/fluent/fluent-bit-go v0.0.0-20190925192703-ea13c021720c
+	github.com/fluent/fluent-bit-go v0.0.0-20230731091245-a7a013e2473c
 	github.com/json-iterator/go v1.1.12
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.3.0
@@ -16,7 +16,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/ugorji/go v1.1.4 // indirect
+	github.com/ugorji/go v1.1.7 // indirect
 	go.opencensus.io v0.20.1 // indirect
 	golang.org/x/net v0.0.0-20190311183353-d8887717615a // indirect
 	golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421 // indirect
