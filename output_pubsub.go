@@ -21,11 +21,6 @@ var (
 	wrapper = OutputWrapper(&Output{})
 )
 
-// PluginContext stores per-instance plugin state
-type PluginContext struct {
-	plugin Keeper
-}
-
 type Output struct{}
 
 type OutputWrapper interface {
@@ -143,27 +138,23 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 		return output.FLB_ERROR
 	}
 
-	// Store per-instance context to support multi-instance deployment
-	// Only Keeper is needed - it already contains all the settings
-	pluginCtx := &PluginContext{
-		plugin: keeper,
-	}
-	output.FLBPluginSetContext(ctx, pluginCtx)
+	// Store keeper in Fluent Bit's context
+	output.FLBPluginSetContext(ctx, keeper)
 
 	return output.FLB_OK
 }
 
 //export FLBPluginFlush
 func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
-	// Get instance-specific context from Fluent Bit
+	// Get instance-specific keeper from Fluent Bit context
 	ctxData := output.FLBPluginGetContext(data)
 	if ctxData == nil {
 		fmt.Printf("[err][flush] context is nil\n")
 		return output.FLB_ERROR
 	}
-	instanceCtx, ok := ctxData.(*PluginContext)
+	instanceKeeper, ok := ctxData.(Keeper)
 	if !ok {
-		fmt.Printf("[err][flush] invalid context type\n")
+		fmt.Printf("[err][flush] invalid keeper type\n")
 		return output.FLB_ERROR
 	}
 	
@@ -202,7 +193,7 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 			// fmt.Printf("Failed to marshal record: [%s] %s %v\n", tagname, timestamp.String(), message)
 			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
 		}
-		results = append(results, instanceCtx.plugin.Send(ctx, interfaceToBytes(message)))
+		results = append(results, instanceKeeper.Send(ctx, interfaceToBytes(message)))
 	}
 	for _, result := range results {
 		if result != nil {
@@ -222,13 +213,10 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 
 //export FLBPluginExit
 func FLBPluginExit(ctx unsafe.Pointer) int {
-	// Get instance-specific context
-	if ctx != nil {
-		ctxData := output.FLBPluginGetContext(ctx)
-		if ctxData != nil {
-			if instanceCtx, ok := ctxData.(*PluginContext); ok {
-				instanceCtx.plugin.Stop()
-			}
+	ctxData := output.FLBPluginGetContext(ctx)
+	if ctxData != nil {
+		if instanceKeeper, ok := ctxData.(Keeper); ok {
+			instanceKeeper.Stop()
 		}
 	}
 	return output.FLB_OK
