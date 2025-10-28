@@ -4,6 +4,7 @@ import (
 	"C"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -14,20 +15,21 @@ import (
 	"github.com/fluent/fluent-bit-go/output"
 
 	jsoniter "github.com/json-iterator/go"
+	"log/slog"
 )
 import "os"
 
 var (
-	plugin   Keeper
-	hostname string
-	wrapper  = OutputWrapper(&Output{})
-
-	timeout        = pubsub.DefaultPublishSettings.Timeout
-	delayThreshold = pubsub.DefaultPublishSettings.DelayThreshold
-	countThreshold = pubsub.DefaultPublishSettings.CountThreshold
-	byteThreshold  = pubsub.DefaultPublishSettings.ByteThreshold
-	debug          = false
+	wrapper = OutputWrapper(&Output{})
+	logger *slog.Logger
+	logLevelVar slog.LevelVar
 )
+
+type pluginContext struct {
+	keeper  Keeper
+	project string
+	topic   string
+}
 
 type Output struct{}
 
@@ -54,6 +56,21 @@ func (o *Output) GetRecord(dec *output.FLBDecoder) (ret int, ts interface{}, rec
 	return output.GetRecord(dec)
 }
 
+func initLoggerFromEnv() {
+	// default to info
+	level := slog.LevelInfo
+	switch strings.ToLower(os.Getenv("FLB_LOG_LEVEL")) {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "error":
+		level = slog.LevelError
+	}
+	logLevelVar.Set(level)
+	logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: &logLevelVar}))
+}
+
 //export FLBPluginRegister
 func FLBPluginRegister(ctx unsafe.Pointer) int {
 	return wrapper.Register(ctx, "pubsub", "output pubsub")
@@ -62,6 +79,7 @@ func FLBPluginRegister(ctx unsafe.Pointer) int {
 //export FLBPluginInit
 func FLBPluginInit(ctx unsafe.Pointer) int {
 	var err error
+	initLoggerFromEnv()
 	project := wrapper.GetConfigKey(ctx, "Project")
 	topic := wrapper.GetConfigKey(ctx, "Topic")
 	jwtPath := wrapper.GetConfigKey(ctx, "JwtPath")
@@ -71,25 +89,33 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 	ct := wrapper.GetConfigKey(ctx, "CountThreshold")
 	dt := wrapper.GetConfigKey(ctx, "DelayThreshold")
 
-	fmt.Printf("[pubsub-go] plugin parameter project = '%s'\n", project)
-	fmt.Printf("[pubsub-go] plugin parameter topic = '%s'\n", topic)
-	fmt.Printf("[pubsub-go] plugin parameter jwtPath = '%s'\n", jwtPath)
-	fmt.Printf("[pubsub-go] plugin parameter debug = '%s'\n", dg)
-	fmt.Printf("[pubsub-go] plugin parameter timeout = '%s'\n", to)
-	fmt.Printf("[pubsub-go] plugin parameter byte threshold = '%s'\n", bt)
-	fmt.Printf("[pubsub-go] plugin parameter count threshold = '%s'\n", ct)
-	fmt.Printf("[pubsub-go] plugin parameter delay threshold = '%s'\n", dt)
+	if logger != nil {
+		logger.Info("[pubsub-go] plugin parameter", "project", project)
+		logger.Info("[pubsub-go] plugin parameter", "topic", topic)
+		logger.Info("[pubsub-go] plugin parameter", "jwtPath", jwtPath)
+		logger.Info("[pubsub-go] plugin parameter", "debug", dg)
+		logger.Info("[pubsub-go] plugin parameter", "timeout", to)
+		logger.Info("[pubsub-go] plugin parameter", "byte_threshold", bt)
+		logger.Info("[pubsub-go] plugin parameter", "count_threshold", ct)
+		logger.Info("[pubsub-go] plugin parameter", "delay_threshold", dt)
+	}
 
-	hostname, err = os.Hostname()
+	hostname, err := os.Hostname()
 	if err != nil {
 		fmt.Printf("[err][init] %+v\n", err)
 		return output.FLB_ERROR
 	}
 
-	fmt.Printf("[pubsub-go] plugin hostname = '%s'\n", hostname)
+	if logger != nil { logger.Info("[pubsub-go] plugin hostname", "hostname", hostname) }
+
+	// Parse settings into local variables (not global)
+	instanceTimeout := pubsub.DefaultPublishSettings.Timeout
+	instanceByteThreshold := pubsub.DefaultPublishSettings.ByteThreshold
+	instanceCountThreshold := pubsub.DefaultPublishSettings.CountThreshold
+	instanceDelayThreshold := pubsub.DefaultPublishSettings.DelayThreshold
 
 	if dg != "" {
-		debug, err = strconv.ParseBool(dg)
+		_, err = strconv.ParseBool(dg)
 		if err != nil {
 			fmt.Printf("[err][init] %+v\n", err)
 			return output.FLB_ERROR
@@ -101,7 +127,7 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 			fmt.Printf("[err][init] %+v\n", err)
 			return output.FLB_ERROR
 		}
-		timeout = time.Duration(v) * time.Millisecond
+		instanceTimeout = time.Duration(v) * time.Millisecond
 	}
 	if bt != "" {
 		v, err := strconv.Atoi(bt)
@@ -109,7 +135,7 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 			fmt.Printf("[err][init] %+v\n", err)
 			return output.FLB_ERROR
 		}
-		byteThreshold = v
+		instanceByteThreshold = v
 	}
 	if ct != "" {
 		v, err := strconv.Atoi(ct)
@@ -117,7 +143,7 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 			fmt.Printf("[err][init] %+v\n", err)
 			return output.FLB_ERROR
 		}
-		countThreshold = v
+		instanceCountThreshold = v
 	}
 	if dt != "" {
 		v, err := strconv.Atoi(dt)
@@ -125,13 +151,13 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 			fmt.Printf("[err][init] %+v\n", err)
 			return output.FLB_ERROR
 		}
-		delayThreshold = time.Duration(v) * time.Millisecond
+		instanceDelayThreshold = time.Duration(v) * time.Millisecond
 	}
 	publishSetting := pubsub.PublishSettings{
-		ByteThreshold:  byteThreshold,
-		CountThreshold: countThreshold,
-		DelayThreshold: delayThreshold,
-		Timeout:        timeout,
+		ByteThreshold:  instanceByteThreshold,
+		CountThreshold: instanceCountThreshold,
+		DelayThreshold: instanceDelayThreshold,
+		Timeout:        instanceTimeout,
 	}
 
 	keeper, err := NewKeeper(project, topic, jwtPath, &publishSetting)
@@ -139,66 +165,92 @@ func FLBPluginInit(ctx unsafe.Pointer) int {
 		fmt.Printf("[err][init] %+v\n", err)
 		return output.FLB_ERROR
 	}
-	plugin = keeper
+
+	// Store keeper and metadata in Fluent Bit's context
+	output.FLBPluginSetContext(ctx, &pluginContext{keeper: keeper, project: project, topic: topic})
+
 	return output.FLB_OK
 }
 
+// FLBPluginFlush: 구버전 ABI 엔트리포인트
+// 구버전 Fluent Bit에서는 'data'가 플러그인 컨텍스트를 가리킵니다.
+// 하위 호환을 위해 최신 방식 함수(아래)로 위임합니다.
 //export FLBPluginFlush
 func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
-	ctx := context.Background()
+	// Call the ctx-aware variant using data as ctx for old ABI compatibility
+	return FLBPluginFlushCtx(data, data, length, tag)
+}
+
+// FLBPluginFlushCtx: 최신 ABI 엔트리포인트
+// 최신 Fluent Bit에서는 플러그인 컨텍스트는 'ctx'로, 레코드 버퍼는 'data'로 전달됩니다.
+// 신규 버전에서 컨텍스트 nil 문제가 생기지 않도록 항상 'ctx'에서 컨텍스트를 조회합니다.
+//export FLBPluginFlushCtx
+func FLBPluginFlushCtx(ctx unsafe.Pointer, data unsafe.Pointer, length C.int, tag *C.char) int {
+	ctxData := output.FLBPluginGetContext(ctx)
+	if ctxData == nil {
+		fmt.Printf("[err][flush] context is nil\n")
+		return output.FLB_ERROR
+	}
+	pc, ok := ctxData.(*pluginContext)
+	if !ok {
+		fmt.Printf("[err][flush] invalid context type\n")
+		return output.FLB_ERROR
+	}
+
+	bctx := context.Background()
 	tagname := ""
-	if tag == nil {
+	if tag != nil {
 		tagname = C.GoString(tag)
 	}
 
-	// Create Fluent Bit decoder
 	dec := wrapper.NewDecoder(data, int(length))
 	var results []*pubsub.PublishResult
 	var err error
 	var message []byte
-	// Iterate Records
+
 	for {
-		// Extract Record
 		ret, ts, record := wrapper.GetRecord(dec)
-		if ret != 0 { // don't rest
+		if ret != 0 {
 			break
 		}
-		// before
-		// timestamp := ts.(output.FLBTime)
-		// after
 		timestampStr := fmt.Sprintf("%v", ts)
 		record, err = DecodeMap(record)
 		if err != nil {
-			// fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestamp.String(), record)
 			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
 		}
 
 		var json = jsoniter.ConfigCompatibleWithStandardLibrary
 		message, err = json.Marshal(record)
-
 		if err != nil {
-			// fmt.Printf("Failed to marshal record: [%s] %s %v\n", tagname, timestamp.String(), message)
 			fmt.Printf("Failed to decode record: [%s] %s %v\n", tagname, timestampStr, record)
 		}
-		results = append(results, plugin.Send(ctx, interfaceToBytes(message)))
+		results = append(results, pc.keeper.Send(bctx, interfaceToBytes(message)))
 	}
+
 	for _, result := range results {
-		if _, err := result.Get(ctx); err != nil {
-			// if timeout is raised.
-			if err == context.DeadlineExceeded || err == context.Canceled {
-				fmt.Printf("[err][publish][retry] %+v \n", err)
-				return output.FLB_RETRY
+		if result != nil {
+			if msgID, err := result.Get(bctx); err != nil {
+				if err == context.DeadlineExceeded || err == context.Canceled {
+					fmt.Printf("[err][publish][retry] %+v \n", err)
+					return output.FLB_RETRY
+				}
+				fmt.Printf("[err][publish][don't retry] %+v \n", err)
+			} else {
+				if logger != nil { logger.Info("[publish] success", "msg_id", msgID, "tag", tagname, "project", pc.project, "topic", pc.topic) }
 			}
-			// else error is next
-			fmt.Printf("[err][publish][don't retry] %+v \n", err)
 		}
 	}
 	return output.FLB_OK
 }
 
 //export FLBPluginExit
-func FLBPluginExit() int {
-	plugin.Stop()
+func FLBPluginExit(ctx unsafe.Pointer) int {
+	ctxData := output.FLBPluginGetContext(ctx)
+	if ctxData != nil {
+		if pc, ok := ctxData.(*pluginContext); ok {
+			pc.keeper.Stop()
+		}
+	}
 	return output.FLB_OK
 }
 

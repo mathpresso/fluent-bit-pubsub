@@ -71,20 +71,34 @@ func TestFLBPluginInit(t *testing.T) {
 	wrapper = OutputWrapper(&testOutput{})
 	if os.Getenv("PROJECT_ID") == "" || os.Getenv("TOPIC_NAME") == "" ||
 		os.Getenv("JWT_PATH") == "" {
-		assert.Equal(output.FLB_ERROR, FLBPluginInit(nil))
+		// Test with empty config should fail
+		assert.Equal(output.FLB_ERROR, FLBPluginInit(unsafe.Pointer(&testOutput{})))
 	} else {
-		assert.Equal(output.FLB_OK, FLBPluginInit(nil))
+		// Test with valid config should succeed
+		result := FLBPluginInit(unsafe.Pointer(&testOutput{}))
+		assert.Equal(output.FLB_OK, result)
 	}
 }
 
 func TestFLBPluginFlush(t *testing.T) {
 	assert := assert.New(t)
 	wrapper = OutputWrapper(&testOutput{})
+	
+	// First, we need to init the plugin to set up context
 	if os.Getenv("PROJECT_ID") == "" || os.Getenv("TOPIC_NAME") == "" ||
 		os.Getenv("JWT_PATH") == "" {
 		return
 	}
-	ok := FLBPluginFlush(nil, 0, nil)
+	
+	// Create mock ctx pointer
+	mockCtx := unsafe.Pointer(&testOutput{})
+	
+	// Initialize plugin to create context
+	result := FLBPluginInit(mockCtx)
+	assert.Equal(output.FLB_OK, result)
+	
+	// Now test flush with the same context
+	ok := FLBPluginFlush(mockCtx, 0, nil)
 	assert.Equal(output.FLB_OK, ok)
 
 	projectId := os.Getenv("PROJECT_ID")
@@ -103,6 +117,32 @@ func TestFLBPluginFlush(t *testing.T) {
 		})
 	}()
 	time.Sleep(5 * time.Second)
+	
+	// Test exit cleanup
+	FLBPluginExit(mockCtx)
+}
+
+func TestFLBPluginExit(t *testing.T) {
+	assert := assert.New(t)
+	wrapper = OutputWrapper(&testOutput{})
+	
+	if os.Getenv("PROJECT_ID") == "" || os.Getenv("TOPIC_NAME") == "" ||
+		os.Getenv("JWT_PATH") == "" {
+		return
+	}
+	
+	// Initialize plugin
+	mockCtx := unsafe.Pointer(&testOutput{})
+	result := FLBPluginInit(mockCtx)
+	assert.Equal(output.FLB_OK, result)
+	
+	// Test exit with nil context (should not panic)
+	exitResult := FLBPluginExit(nil)
+	assert.Equal(output.FLB_OK, exitResult)
+	
+	// Test exit with valid context
+	exitResult = FLBPluginExit(mockCtx)
+	assert.Equal(output.FLB_OK, exitResult)
 }
 
 func TestInterfaceToBytes(t *testing.T) {
