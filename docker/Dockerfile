@@ -1,18 +1,15 @@
-FROM golang:1.12 as gobuilder
+FROM golang:1.22 as gobuilder
 
-ENV GO111MODULE on
+RUN apt-get update && apt-get install -y ca-certificates libgnutls30
 
-RUN apt update && apt install ca-certificates libgnutls30 -y
-
-COPY . /go/pubsub/
-
-WORKDIR /go/pubsub
+WORKDIR /build
+COPY . .
 
 RUN go build -buildmode=c-shared -o pubsub.so .
 
 FROM cr.fluentbit.io/fluent/fluent-bit:3.2.10
 
-COPY --from=gobuilder /go/pubsub/pubsub.so /fluent-bit/
+COPY --from=gobuilder /build/pubsub.so /fluent-bit/
 
 COPY conf/ /fluent-bit/parsers
 

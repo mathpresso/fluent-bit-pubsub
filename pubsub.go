@@ -50,5 +50,12 @@ func (gps *GooglePubSub) Send(ctx context.Context, data []byte) *pubsub.PublishR
 }
 
 func (gps *GooglePubSub) Stop() {
+	// Stop publishing to the topic and flush pending messages
+	// This waits for all pending writes to complete
 	gps.topic.Stop()
+	
+	// Close the client to release resources
+	if gps.client != nil {
+		gps.client.Close()
+	}
 }
